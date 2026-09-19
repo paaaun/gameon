@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>GAME ON — Nagrada ili Kazna</title>
+<style>
+
+/* GAME ON custom cursor */
+html, body, .stage, .canvas, .hotspot, #newgame, #full, button {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 36 36'%3E%3Ccircle cx='18' cy='18' r='13' fill='%2307060b' fill-opacity='.92' stroke='%23b84cff' stroke-width='2.5'/%3E%3Ccircle cx='18' cy='18' r='5' fill='none' stroke='%23ff8a1f' stroke-width='2.5'/%3E%3Cpath d='M18 1.5v7M18 27.5v7M1.5 18h7M27.5 18h7' stroke='%23ff8a1f' stroke-width='2.5' stroke-linecap='round'/%3E%3Ccircle cx='18' cy='18' r='2' fill='%23fff'/%3E%3C/svg%3E") 18 18, crosshair;
+}
+.hotspot:hover, #newgame:hover {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='42' height='42' viewBox='0 0 42 42'%3E%3Ccircle cx='21' cy='21' r='16' fill='%2307060b' fill-opacity='.9' stroke='%23ff8a1f' stroke-width='3'/%3E%3Ccircle cx='21' cy='21' r='7' fill='none' stroke='%23b84cff' stroke-width='3'/%3E%3Cpath d='M21 1v9M21 32v9M1 21h9M32 21h9' stroke='%23b84cff' stroke-width='3' stroke-linecap='round'/%3E%3Ccircle cx='21' cy='21' r='2.5' fill='%23fff'/%3E%3C/svg%3E") 21 21, pointer;
+}
+#overlay, #overlay *, .close {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 36 36'%3E%3Ccircle cx='18' cy='18' r='13' fill='%2307060b' fill-opacity='.92' stroke='%23a83cff' stroke-width='2.5'/%3E%3Cpath d='M11 11l14 14M25 11L11 25' stroke='%23ff8a1f' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E") 18 18, pointer;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#030107}
+body{font-family:Arial,Helvetica,sans-serif;color:#fff}
+body:fullscreen{background:#030107}
+
+/* The game is always kept at the exact 16:9 artwork ratio.
+   This makes every touch/click zone line up with the artwork,
+   including browser fullscreen and portrait phones. */
+.viewport{
+  width:100vw;height:100dvh;
+  display:flex;align-items:center;justify-content:center;
+  background:#030107;
+}
+.canvas{
+  position:relative;
+  width:min(100vw,177.7778dvh);
+  height:min(100dvh,56.25vw);
+  aspect-ratio:16/9;
+  overflow:hidden;
+}
+.bg{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;user-select:none;pointer-events:none}
+
+.hotspot{
+ position:absolute;border:0;background:transparent;border-radius:1.1%;
+ cursor:pointer;z-index:2;
+}
+.hotspot:not(.opened):hover{
+ box-shadow:0 0 24px #fff6,inset 0 0 20px #fff2;
+}
+.hotspot.opened{pointer-events:none}
+.hotspot.opened{pointer-events:none}
+ 100%{opacity:1;transform:scale(1);filter:blur(0)}
+}
+
+/* Exact positions of the 10 numbered tiles in the 1664x936 artwork */
+#h1{left:19.77%;top:36.97%;width:11.30%;height:19.34%}
+#h2{left:31.73%;top:36.97%;width:11.30%;height:19.34%}
+#h3{left:43.75%;top:36.97%;width:11.36%;height:19.34%}
+#h4{left:55.95%;top:36.97%;width:11.30%;height:19.34%}
+#h5{left:68.00%;top:36.97%;width:11.36%;height:19.34%}
+#h6{left:19.77%;top:57.91%;width:11.30%;height:19.44%}
+#h7{left:31.73%;top:57.91%;width:11.30%;height:19.44%}
+#h8{left:43.75%;top:57.91%;width:11.36%;height:19.44%}
+#h9{left:55.95%;top:57.91%;width:11.30%;height:19.44%}
+#h10{left:68.00%;top:57.91%;width:11.36%;height:19.44%}
+
+#newgame{
+ position:absolute;left:38.5%;top:81.0%;width:23%;height:9.5%;
+ z-index:3;border:0;background:transparent;border-radius:8%;
+ cursor:pointer;
+}
+#newgame:hover{box-shadow:0 0 32px #a83cffaa}
+#full{
+ position:fixed;right:14px;bottom:14px;z-index:30;
+ border:1px solid #fff4;background:#0d0714dd;color:#fff;
+ border-radius:24px;padding:9px 14px;font-weight:900;cursor:pointer;
+ backdrop-filter:blur(8px);
+}
+
+/* ---------- REVEAL ---------- */
+#overlay{
+ position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;
+ background:
+   radial-gradient(circle at 50% 50%,#6f24a82b,transparent 32%),
+   #030107e8;
+ backdrop-filter:blur(9px);
+}
+#overlay.show{display:flex}
+#overlay.nagrada{--accent:#ff7b16;--accent2:#ffb43c;--dark:#210d04}
+#overlay.kazna{--accent:#a83cff;--accent2:#df86ff;--dark:#160625}
+
+.reveal-bg{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.reveal-bg:before,.reveal-bg:after{
+ content:"";position:absolute;width:160vw;height:18vh;left:-30vw;
+ background:linear-gradient(90deg,transparent,#fff0 15%,var(--accent) 48%,#fff0 82%,transparent);
+ opacity:.13;transform:rotate(-13deg);
+}
+.reveal-bg:before{top:18%;animation:sweep 2.2s ease-in-out infinite}
+.reveal-bg:after{top:68%;transform:rotate(12deg);animation:sweep 2.8s .4s ease-in-out infinite reverse}
+@keyframes sweep{0%,100%{translate:-15vw 0}50%{translate:15vw 0}}
+
+.card{
+ position:relative;width:min(72vw,940px);height:min(62vh,600px);
+ display:flex;flex-direction:column;align-items:center;justify-content:center;
+ overflow:hidden;
+ clip-path:polygon(2.4% 0,97.6% 0,100% 3.5%,100% 96.5%,97.6% 100%,2.4% 100%,0 96.5%,0 3.5%);
+ border:0;
+ background:
+   radial-gradient(ellipse at 50% 52%,var(--accent)18%,transparent 42%),
+   linear-gradient(135deg,#09050d 0%,#16091d 45%,#050207 100%);
+ box-shadow:0 0 28px var(--accent),0 0 100px var(--accent)44,0 30px 100px #000;
+ transform:scale(.25) rotateX(55deg) rotateZ(-3deg);opacity:0;
+ animation:cardIn .72s cubic-bezier(.15,.9,.18,1) forwards;
+}
+@keyframes cardIn{
+ 0%{transform:scale(.25) rotateX(55deg) rotateZ(-3deg);opacity:0;filter:blur(10px)}
+ 55%{transform:scale(1.04) rotateX(0) rotateZ(0);opacity:1;filter:blur(0)}
+ 100%{transform:scale(1) rotateX(0) rotateZ(0);opacity:1;filter:blur(0)}
+}
+.card:before{
+ content:"";position:absolute;inset:7px;z-index:0;
+ clip-path:polygon(2.2% 0,97.8% 0,100% 4%,100% 96%,97.8% 100%,2.2% 100%,0 96%,0 4%);
+ border:2px solid var(--accent);
+ background:
+  repeating-linear-gradient(0deg,transparent 0 7px,#fff10 8px 9px),
+  repeating-linear-gradient(90deg,transparent 0 22px,#fff008 23px 24px);
+ opacity:.8;pointer-events:none;
+}
+.card:after{
+ content:"";position:absolute;inset:-30%;z-index:0;
+ background:
+  linear-gradient(145deg,transparent 0 28%,var(--accent) 29% 31%,transparent 32% 57%,var(--accent2) 58% 60%,transparent 61%),
+  linear-gradient(35deg,transparent 0 41%,#fff2 42% 43%,transparent 44%);
+ opacity:.12;transform:rotate(-8deg);animation:conceptSweep 3.5s ease-in-out infinite;
+ pointer-events:none;
+}
+@keyframes conceptSweep{0%,100%{translate:-8% 0}50%{translate:8% 0}}
+
+.card .shard{position:absolute;z-index:1;pointer-events:none}
+.shard.s1{
+ left:-4%;top:2%;width:45%;height:31%;opacity:.95;
+ background:linear-gradient(132deg,transparent 0 37%,var(--accent) 38% 43%,transparent 44% 49%,#fff3 50% 51%,transparent 52%);
+ transform:rotate(-6deg);
+}
+.shard.s2{
+ right:-5%;bottom:0;width:48%;height:34%;opacity:.9;
+ background:linear-gradient(315deg,transparent 0 34%,var(--accent2) 35% 40%,transparent 41% 49%,var(--accent) 50% 52%,transparent 53%);
+ transform:rotate(5deg);
+}
+.shard.s3{
+ right:0;top:5%;width:28%;height:26%;opacity:.7;
+ background:linear-gradient(125deg,transparent 0 45%,#fff5 46% 48%,transparent 49% 56%,var(--accent) 57% 59%,transparent 60%);
+}
+.shard.s4{
+ left:2%;bottom:6%;width:30%;height:23%;opacity:.55;
+ background:linear-gradient(45deg,transparent 0 42%,#fff4 43% 46%,transparent 47% 58%,var(--accent2) 59% 62%,transparent 63%);
+}
+
+.owl{
+ position:absolute;z-index:3;top:6.5%;left:50%;width:150px;height:95px;
+ transform:translateX(-50%);filter:drop-shadow(0 0 15px var(--accent));
+}
+.owl:before,.owl:after{
+ content:"";position:absolute;top:16px;width:58px;height:58px;
+ border-radius:50% 50% 44% 44%;background:#050207;
+ border:2px solid var(--accent);
+}
+.owl:before{left:8px}.owl:after{right:8px}
+.owl i,.owl b{
+ position:absolute;top:33px;width:20px;height:20px;border-radius:50%;
+ background:#ffd83d;z-index:3;box-shadow:0 0 18px #ffd83d;
+}
+.owl i{left:27px}.owl b{right:27px}
+.owl em{
+ position:absolute;left:65px;top:54px;
+ border-left:10px solid transparent;border-right:10px solid transparent;
+ border-top:15px solid #ffd83d;z-index:4;
+}
+
+.hud{
+ position:absolute;z-index:3;font:900 9px/1 monospace;letter-spacing:.2em;
+ opacity:.65;text-transform:uppercase;
+}
+.hud:before{content:"";display:block;width:48px;height:2px;background:var(--accent);margin-bottom:6px;box-shadow:0 0 8px var(--accent)}
+.hud.h1{left:6%;top:9%}.hud.h2{right:6%;bottom:11%;text-align:right}
+.hud.h2:before{margin-left:auto}
+.hud span{display:block;margin-top:5px;opacity:.7}
+
+.concept-word{
+ position:absolute;z-index:3;font-weight:1000;font-style:italic;
+ line-height:.78;letter-spacing:.02em;text-transform:uppercase;
+ color:var(--accent);text-shadow:0 0 10px var(--accent);
+ font-size:clamp(13px,1.4vw,22px);opacity:.9;
+}
+.cw1{left:6%;bottom:25%;transform:rotate(-8deg)}
+.cw2{right:6%;bottom:22%;transform:rotate(8deg);text-align:right;color:var(--accent2)}
+.concept-mark{
+ position:absolute;right:7%;top:31%;z-index:3;width:42px;height:42px;
+ border:2px solid var(--accent);border-radius:50%;
+ display:flex;align-items:center;justify-content:center;
+ color:var(--accent);font-size:28px;opacity:.75;
+ box-shadow:0 0 14px var(--accent);
+}
+.brand{
+ z-index:4;font-size:clamp(13px,1.35vw,22px);font-weight:1000;
+ letter-spacing:.28em;text-transform:uppercase;
+ margin-top:4vh;text-shadow:0 0 12px #000;
+}
+.brand b{color:var(--accent2);text-shadow:0 0 14px var(--accent)}
+.badge{
+ z-index:4;margin-top:2.5vh;padding:.6em 1.4em;
+ border-radius:3px;border:1px solid var(--accent);
+ background:#050207cc;color:#fff;letter-spacing:.25em;
+ font-weight:900;font-size:clamp(9px,.9vw,14px);
+ box-shadow:0 0 18px var(--accent)55;
+}
+.big{
+ z-index:4;font-size:clamp(52px,8vw,116px);line-height:.9;
+ font-weight:1000;letter-spacing:.015em;margin-top:2.8vh;
+ font-family:Impact,Haettenschweiler,"Arial Black",sans-serif;
+ font-style:italic;color:var(--accent2);
+ -webkit-text-stroke:1px #fff5;
+ text-shadow:
+  3px 3px 0 #070208,
+  0 0 10px var(--accent),
+  0 0 35px var(--accent),
+  0 0 85px var(--accent);
+ animation:textPop .62s .30s cubic-bezier(.15,1.5,.2,1) both;
+}
+#overlay.kazna .big{transform:skewX(-7deg)}
+.slogan{
+ z-index:4;margin-top:2.5vh;font-size:clamp(9px,1vw,15px);
+ letter-spacing:.28em;font-weight:900;opacity:.72;text-transform:uppercase;
+}
+.close{
+ z-index:5;margin-top:4vh;border:1px solid var(--accent);
+ background:#050207ee;color:#fff;border-radius:3px;
+ padding:12px 34px;font-size:clamp(12px,1.1vw,16px);font-weight:1000;
+ letter-spacing:.08em;cursor:pointer;box-shadow:0 0 20px var(--accent)66;
+ position:relative;min-width:150px;
+}
+.close:before,.close:after{
+ content:"";position:absolute;top:50%;width:8px;height:8px;
+ border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);
+ transform:translateY(-50%);
+}
+.close:before{left:10px}.close:after{right:10px}
+.close:hover{transform:scale(1.04);background:#100817}
+.corner{
+ position:absolute;width:95px;height:95px;border-color:var(--accent);
+ border-style:solid;opacity:.95;z-index:4;filter:drop-shadow(0 0 5px var(--accent))
+}
+.c1{left:18px;top:18px;border-width:3px 0 0 3px}
+.c2{right:18px;top:18px;border-width:3px 3px 0 0}
+.c3{left:18px;bottom:18px;border-width:0 0 3px 3px}
+.c4{right:18px;bottom:18px;border-width:0 3px 3px 0}
+.brand{
+ z-index:3;font-size:clamp(14px,1.5vw,24px);font-weight:1000;
+ letter-spacing:.35em;text-transform:uppercase;opacity:.82;
+}
+.brand b{color:var(--accent2)}
+.badge{
+ z-index:3;margin-top:3vh;padding:.55em 1.2em;border-radius:999px;
+ border:1px solid var(--accent);background:#05020788;
+ color:#fff;letter-spacing:.18em;font-weight:900;font-size:clamp(10px,1vw,16px);
+ box-shadow:0 0 20px var(--accent)55;
+}
+.big{
+ z-index:3;font-size:clamp(54px,8.7vw,125px);line-height:.95;
+ font-weight:1000;letter-spacing:.015em;margin-top:2vh;
+ color:var(--accent2);
+ text-shadow:0 0 12px var(--accent),0 0 38px var(--accent),0 0 90px var(--accent);
+ animation:textPop .62s .30s cubic-bezier(.15,1.5,.2,1) both;
+}
+@keyframes textPop{
+ 0%{transform:scale(.18);opacity:0;filter:blur(12px)}
+ 65%{transform:scale(1.08);opacity:1;filter:blur(0)}
+ 100%{transform:scale(1)}
+}
+.slogan{
+ z-index:3;margin-top:2vh;font-size:clamp(11px,1.15vw,18px);
+ letter-spacing:.22em;font-weight:900;opacity:.65;text-transform:uppercase;
+}
+.close{
+ z-index:4;margin-top:4vh;border:2px solid var(--accent);
+ background:#0c0611;color:#fff;border-radius:999px;
+ padding:12px 28px;font-size:clamp(13px,1.2vw,18px);font-weight:1000;
+ cursor:pointer;box-shadow:0 0 20px var(--accent)55;
+}
+.close:hover{transform:scale(1.04)}
+.corner{
+ position:absolute;width:90px;height:90px;border-color:var(--accent);
+ border-style:solid;opacity:.7;z-index:3
+}
+.c1{left:18px;top:18px;border-width:3px 0 0 3px}
+.c2{right:18px;top:18px;border-width:3px 3px 0 0}
+.c3{left:18px;bottom:18px;border-width:0 0 3px 3px}
+.c4{right:18px;bottom:18px;border-width:0 3px 3px 0}
+
+#burst{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.spark{
+ position:absolute;width:8px;height:8px;border-radius:50%;background:var(--accent);
+ box-shadow:0 0 18px var(--accent);animation:spark 1.1s cubic-bezier(.1,.7,.2,1) forwards
+}
+@keyframes spark{
+ 0%{left:50%;top:50%;transform:translate(-50%,-50%) scale(.2);opacity:1}
+ 100%{left:var(--x);top:var(--y);transform:translate(-50%,-50%) scale(1);opacity:0}
+}
+.ring{
+ position:absolute;left:50%;top:50%;width:24vmin;height:24vmin;
+ border:3px solid var(--accent);border-radius:50%;
+ transform:translate(-50%,-50%) scale(.2);opacity:0;
+ box-shadow:0 0 30px var(--accent),inset 0 0 30px var(--accent);
+}
+.ring.a{animation:ring .9s ease-out forwards}
+.ring.b{animation:ring .9s .13s ease-out forwards}
+.ring.c{animation:ring .9s .26s ease-out forwards}
+@keyframes ring{
+ 0%{transform:translate(-50%,-50%) scale(.15);opacity:.9}
+ 100%{transform:translate(-50%,-50%) scale(3.6);opacity:0}
+}
+#fx{position:fixed;inset:0;z-index:25;pointer-events:none;opacity:0}
+#fx.flash{animation:flash .55s ease-out}
+@keyframes flash{0%{opacity:0;background:#fff}15%{opacity:.20}100%{opacity:0}}
+body.shake{animation:shake .38s ease-out}
+@keyframes shake{
+ 0%,100%{transform:translate(0)}
+ 18%{transform:translate(-5px,2px)}
+ 36%{transform:translate(5px,-2px)}
+ 54%{transform:translate(-3px,1px)}
+ 72%{transform:translate(3px,-1px)}
+}
+
+@media(max-width:700px){
+ #full{right:8px;bottom:8px;font-size:11px;padding:8px 11px}
+ .card{width:88vw;height:58vh;border-radius:28px}
+ .corner{width:55px;height:55px}
+ .brand{font-size:11px}
+ .big{font-size:16vw}
+ .slogan{font-size:9px}
+}
+
+.reveal-logo{
+  position:relative;
+  z-index:4;
+  width:min(42vw,560px);
+  max-width:78%;
+  max-height:150px;
+  height:auto;
+  object-fit:contain;
+  margin:0 auto 1.2vh;
+  filter:drop-shadow(0 0 10px #ff8a1f66) drop-shadow(0 0 24px #a83cff55);
+}
+@media(max-width:700px){
+  .reveal-logo{width:72vw;max-height:105px}
+}
+
+
+#resultSlogan{
+  text-align:center;
+  text-wrap:balance;
+  max-width:min(760px,82vw);
+  margin-left:auto;
+  margin-right:auto;
+  line-height:1.18;
+}
+
+</style>
+</head>
+<body>
+<div class="viewport">
+ <div class="canvas" id="canvas">
+  <img class="bg" src="gameon-background.png" alt="GAME ON">
+  <div id="board"></div>
+  <button id="newgame" aria-label="Nova igra"></button>
+ </div>
+</div>
+<button id="full">⛶ FULLSCREEN</button>
+
+<div id="fx"></div>
+<div id="overlay">
+ <div class="reveal-bg"></div>
+ <div id="burst"></div>
+ <div class="ring a"></div><div class="ring b"></div><div class="ring c"></div>
+ <div class="card">
+  <i class="corner c1"></i><i class="corner c2"></i><i class="corner c3"></i><i class="corner c4"></i>
+  <img class="reveal-logo" src="GameOn-chalenge-logo.png" alt="GAME ON CHALLENGE">
+  <div class="badge">IZABRANO POLJE</div>
+  <div class="big" id="bigResult"></div>
+  <div class="slogan" id="resultSlogan">IGRA · IZAZOV · ZABAVA</div>
+  <button class="close" onclick="closeOverlay()">ZATVORI</button>
+ </div>
+</div>
+
+<script>
+const board=document.getElementById('board');
+const overlay=document.getElementById('overlay');
+const burst=document.getElementById('burst');
+const fx=document.getElementById('fx');
+const positions=[
+ [19.77,36.97,11.30,19.34],[31.73,36.97,11.30,19.34],[43.75,36.97,11.36,19.34],[55.95,36.97,11.30,19.34],[68.00,36.97,11.36,19.34],
+ [19.77,57.91,11.30,19.44],[31.73,57.91,11.30,19.44],[43.75,57.91,11.36,19.44],[55.95,57.91,11.30,19.44],[68.00,57.91,11.36,19.44]
+];
+let results=[];
+const rewardCards=[
+ {type:'NAGRADA',title:'VREĆICA GRATIS',desc:''},
+ {type:'NAGRADA',title:'DUPLI POENI',desc:'Jedno bacanje se računa ×2.'},
+ {type:'NAGRADA',title:'BONUS POLJE',desc:''},
+ {type:'NAGRADA',title:'+15 SEKUNDI',desc:''},
+ {type:'NAGRADA',title:'BLIZINA',desc:'Igrač se spušta 3 m.'},
+ {type:'KAZNA',title:'VREĆICA MANJE',desc:''},
+ {type:'KAZNA',title:'SLABIJA RUKA',desc:'Igrač gađa slabijom rukom.'},
+ {type:'KAZNA',title:'RIZIK',desc:'Igrač bira polje. Ako pogodi, dobija poene, ako promaši, oduzimaju mu se poeni.'},
+ {type:'KAZNA',title:'DALJINA',desc:'Igrač se pomera 3 m uvis.'},
+ {type:'KAZNA',title:'−15 SEKUNDI',desc:''}
+];
+function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function newGame(){
+ results=shuffle([...rewardCards]);
+ board.innerHTML='';
+ positions.forEach((p,i)=>{
+  const b=document.createElement('button');
+  b.className='hotspot';b.id='h'+(i+1);
+  b.style.left=p[0]+'%';b.style.top=p[1]+'%';b.style.width=p[2]+'%';b.style.height=p[3]+'%';
+  b.setAttribute('aria-label','Polje '+(i+1));
+  b.onclick=()=>openTile(b,i);
+  board.appendChild(b);
+ });
+ closeOverlay();
+}
+function openTile(b,i){
+ if(b.classList.contains('opened'))return;
+ b.classList.add('opened');
+ const r=results[i];
+ b.setAttribute('data-result', r.type);
+ document.getElementById('bigResult').textContent=r.title;
+ overlay.className='show '+(r.type==='NAGRADA'?'nagrada':'kazna');
+ document.getElementById('resultSlogan').textContent =
+   r.desc || (r.type==='NAGRADA' ? 'BONUS' : 'KAZNA');
+ document.body.classList.remove('shake');void document.body.offsetWidth;document.body.classList.add('shake');
+ fx.className='flash';
+ burst.innerHTML='';
+ for(let n=0;n<48;n++){
+  const s=document.createElement('i');s.className='spark';
+  s.style.setProperty('--x',Math.random()*100+'%');
+  s.style.setProperty('--y',Math.random()*100+'%');
+  s.style.animationDelay=Math.random()*.18+'s';
+  burst.appendChild(s);
+ }
+ setTimeout(()=>fx.className='',650);
+}
+function closeOverlay(){overlay.className='';burst.innerHTML=''}
+function fullscreen(){
+ if(!document.fullscreenElement)document.documentElement.requestFullscreen?.();
+ else document.exitFullscreen?.();
+}
+document.getElementById('newgame').onclick=newGame;
+document.getElementById('full').onclick=fullscreen;
+overlay.addEventListener('click',e=>{if(e.target===overlay)closeOverlay()});
+document.addEventListener('keydown',e=>{
+ if(e.key.toLowerCase()==='r')newGame();
+ if(e.key.toLowerCase()==='f')fullscreen();
+ if(e.key==='Escape')closeOverlay();
+});
+newGame();
+</script>
+</body>
+</html>
